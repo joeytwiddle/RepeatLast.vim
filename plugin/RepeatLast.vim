@@ -2,7 +2,7 @@
 "
 " Provides <count>\. to repeat the last group of actions you performed.
 "
-"                     "A beautiful monster" -- bairui
+"                 "A beautiful monster" -- bairui in #vim
 "
 " The '.' key is fantastic for repeating the last 1 action you made.  But
 " sometimes I do three actions, and then want to repeat them again.  Now
@@ -16,6 +16,9 @@
 "   :let g:RepeatLast_TriggerCursorHold = 1  or  0   for GUI fixes
 "
 " Also: :RepeatLastDisable :RepeatLastEnable :RepeatLastToggleDebugging
+"
+" ** TODO **: timeSinceLast needs debugging on various systems before publishing
+" this version!  reltime() is apparently non-homogenous.
 
 
 
@@ -337,20 +340,27 @@ endif
 " May lose actions executed very quickly by user (or when Vim is being slow).
 " Or for a short while after an Escape.  e.g. i_<Esc><Enter>
 if !exists("g:RepeatLast_TriggerCursorHold")
-  let g:RepeatLast_TriggerCursorHold = 1
+  let g:RepeatLast_TriggerCursorHold = 2
 endif
 " BUG TODO: It blocks recording of actions taken when in visual mode.
-" Only modes 0 and 1 are implemented so far...
-"   0 - do not trigger
-"   1 - do "fancy" (best) solution (always trigger)
-"   2 - do "fancy" solution (but don't always trigger)
-"   3 - always do at 0 interval
-"   4 - always do at fixed interval
+" Only modes 0, 1 and 2 are implemented so far...
+"   0 - Do not trigger CursorHold events, never lose keystrokes
+"   1 - Always trigger (almost immediately)
+"   2 - Trigger sometimes/slowly (may occasionally lose keystrokes)
+"   3 - always do at 0 interval (todo)
+"   4 - always do at fixed interval (todo)
 
 " If set, when you repeat a group, the actions will also be saved in this
 " register.  So  5\.20@g  like  5\.20\\.  will repeat 5 actions 21 times.
 if !exists("g:RepeatLast_SaveToRegister")
   let g:RepeatLast_SaveToRegister = ''
+endif
+
+" The string used to separate commands when displaying the list ("\n" or ' ').
+" Unfortunately although ' ' looks nice, we often lose things to the
+" "recording" line, unless we set Show_History very low.
+if !exists("g:RepeatLast_List_Delimeter")
+  let g:RepeatLast_List_Delimeter = "\n"
 endif
 
 
@@ -626,20 +636,43 @@ function! s:EndActionDetected(trigger)
   endif
 
   if g:RepeatLast_TriggerCursorHold
-    " Delay entering recording mode for a moment, so that CursorHold will fire
-    " (which may perform useful visuals tasks for the user).
-    if s:old_updatetime == 0
-      let s:old_updatetime = &updatetime
+    if !exists("s:lastActionTime")
+      let s:lastActionTime = 0
     endif
-    " NOTE: =0 works fine in terminal vim, but in gvim CursorHold never fires!
-    "       =1 does.
-    "let &updatetime=0
-    let &updatetime=1
-    " If we don't start recording again, it's possible that another trigger
-    " may fire, and re-store the register contents!  (e.g.  InsertLeave,
-    " CursorMoved often fire together).  To prevent storing it twice:
-    call s:ClearRegister()
-    return
+    let timeSinceLast = s:gettime() - s:lastActionTime
+    let s:lastActionTime = s:gettime()
+    " If user is holding down a key (fast repeat) then do not trigger now.
+    " But if user is moving slowly, then consider triggering.
+    " The disadvantage of this check is if the user doesn't do anything slow
+    " after holding down keys, our fake CursorHold will not trigger until they
+    " do!
+    if g:RepeatLast_TriggerCursorHold==1 || timeSinceLast > 50000
+      " Delay entering recording mode for a moment, so that CursorHold will fire
+      " (which may perform useful visuals tasks for the user).
+      if s:old_updatetime == 0
+        let s:old_updatetime = &updatetime
+      endif
+      if g:RepeatLast_TriggerCursorHold > 1 && timeSinceLast > s:old_updatetime*1000
+        " If user is moving VERY slowly, do a normal slow trigger
+        let &updatetime = s:old_updatetime
+      else
+        " Otherwise do a reasonably fast trigger, to avoid losing keystrokes
+        " This should catch repeated (held down) keys if < repeat speed
+        " Although a user hitting two keys very close to each other might
+        " manage it before recording is re-enabled!
+        " NOTE: =0 works fine in terminal vim, but in gvim CursorHold never fires!
+        "       =1 does.
+        "let &updatetime = 0
+        let &updatetime = 1
+        "let &updatetime = timeSinceLast
+        "let &updatetime = g:RepeatLast_TriggerCursorHold
+      endif
+      " If we don't start recording again, it's possible that another trigger
+      " may fire, and re-store the register contents!  (e.g.  InsertLeave,
+      " CursorMoved often fire together).  To prevent storing it twice:
+      call s:ClearRegister()
+      return
+    endif
   endif
 
   " Start recording the next action
@@ -647,6 +680,16 @@ function! s:EndActionDetected(trigger)
     call s:StartRecording()
   endif
 
+endfunction
+
+" Should return a number in nanoseconds
+function! s:gettime()
+  let rt = reltime()
+  if len(rt) > 1
+    return rt[0]*1000000 + rt[1]   " Ubuntu
+  else
+    return rt[0]                   " Dunno; fallback
+  endif
 endfunction
 
 function! s:CursorHoldDone()
@@ -738,8 +781,6 @@ function! s:ShowRecent(num)
   "echo "I will get hidden"
   call s:RestartRecording()
 
-  echo "Recent actions are:"
-
   if numWanted > len(s:earlierActions)
     let numWanted = len(s:earlierActions)
   endif
@@ -748,14 +789,16 @@ function! s:ShowRecent(num)
   " for i in range(start,len(s:earlierActions)-1)
     " let howFarBack = len(s:earlierActions) - i
 
+  let report = "Recent actions:" . g:RepeatLast_List_Delimeter
   for howFarBack in range(numWanted,1,-1)
     let i = len(s:earlierActions) - howFarBack
     if g:RepeatLast_Show_Debug_Info
-      echo "[".howFarBack."]" . " " . s:MyEscape(s:earlierActions[i]) . "   (".s:earlierActionTriggers[i].")\n"
+      let report .= "[".howFarBack."]" . " " . s:MyEscape(s:earlierActions[i]) . " (".s:earlierActionTriggers[i].")" . g:RepeatLast_List_Delimeter
     else
-      echo "[".howFarBack."]" . " " . s:MyEscape(s:earlierActions[i]) . "\n"
+      let report .= "[".howFarBack."]" . " " . s:MyEscape(s:earlierActions[i]) . g:RepeatLast_List_Delimeter
     endif
   endfor
+  echo report
 
   if g:RepeatLast_Show_Debug_Info != 0
     echo "Dropped hopefully unwanted action: \"". s:MyEscape(s:GetRegister()) ."\""
