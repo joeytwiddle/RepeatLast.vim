@@ -76,9 +76,9 @@
 " New feature - Auto Ignoring:
 "
 "   After executing a repeat action, action storage will be *temporarily
-"   disabled* for the number of actions specified in:
+"   disabled* for the number of actions specified by:
 "
-"     g:RepeatLast_Ignore_After_Use_For
+"     let g:RepeatLast_Ignore_After_Use_For = 10
 "
 "   This allows you to move to a new location between executing repeats,
 "   without recording those movement actions.
@@ -86,7 +86,7 @@
 "   Once you have performed enough actions without executing a repeat, action
 "   storage will be re-enabled, and the ignored actions will be added to the
 "   history as one large entry.  Although g:RepeatLast_Stop_Ignoring_On_Edit
-"   disables this recovery.
+"   prevents this recovery.
 "
 " Reading this rest of this file:
 "
@@ -113,7 +113,7 @@
 " taglist updates, etc. that require CursorHold *will not be triggered*.
 " Other events such as CursorMove, InsertLeave, BufWritePost work fine.
 " The new option RepeatLast_TriggerCursorHold can now be used to force trigger
-" of CursorHold events.
+" of CursorHold events.  It may not be ideal, but mostly works ok.
 "
 " == Disadvantages ==
 "
@@ -137,7 +137,7 @@
 "
 " TODO: \| \? \. etc. should probably warn us if RepeatLast is disabled!
 "
-" TODO: Commands are kinda useless.  Make them optional or remove them!
+" TODO: Some of the commands are kinda useless.  Make them optional or remove them!
 "
 " TODO: Even using large ch and with RepeatLast_TriggerCursorHold disabled,
 "       warning messages such as "search hit BOTTOM" are hidden.  At least
@@ -168,12 +168,12 @@
 " is already in progress!  This stops recording and 'x' deletes one char.
 " Bad!  We need to detect whether recording is in progress or not.
 " We could also use a less harmful register, but that's not the true solution.
-" TODO: Since it appears Vim does not currently expose the state of recording,
+" DONE: Since it appears Vim does not currently expose the state of recording,
 " moving to a less harmful register, e.g. 'z' or 'm', might be wise.
 " CONSIDER: We can at least notice when recording has been disabled, because
 " the CursorHold event will eventually fire (it never fires when recording)!
 "
-" TODO: We could use a way to *start* recording again, if temporary Ignoring
+" DONE: We could use a way to *start* recording again, if temporary Ignoring
 " is enabled but unwanted.  We could just do 10 random movements.  We could
 " make \# explicitly toggle (re-enable if ignoring is enabled).  On re-enable
 " we may want to clear the current macro; it could well be a mix of unwanted
@@ -195,13 +195,13 @@
 " also *prevent* us from ending an action-group in a movement that might move
 " it to the correct place for the next movement.
 "
-" TODO: We might try to restore CursorHold events by periodically letting Vim
+" DONE: We might try to restore CursorHold events by periodically letting Vim
 " out of recording mode, but re-enabling recording as soon as CursorHold
 " fires!  A downside might be that we would fail to record keystrokes typed
 " very quickly after said release (before CursorHold fires).
 "
-" TODO: Accidentally doing  80\/  instead of  80\?  throws up a lot of error
-" messages: "Error detected while processing function
+" TODO (elsewhere): Accidentally doing  80\/  instead of  80\?  throws up a
+" lot of error messages: "Error detected while processing function
 "            MyRepeatedSearch..MyRepeatedSearch..MyRepeatedSearch.."
 " This actually comes from joey.vim.  It should fail gracefully when given a
 " count.

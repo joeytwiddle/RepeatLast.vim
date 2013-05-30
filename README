@@ -2,58 +2,95 @@ This is a mirror of http://www.vim.org/scripts/script.php?script_id=4381
 
 " Provides <count>\. to repeat the last group of actions you performed.
 "
-" The '.' key is fantastic at repeating the last 1 action you made.  But
+"                     "A beautiful monster" -- bairui
+"
+" The '.' key is fantastic for repeating the last 1 action you made.  But
 " sometimes I do three actions, and then want to repeat them again.  Now
 " this is just 3\.
+"
+" BEWARE: Because it uses macro recording *all the time*, it sort of takes
+" over your Vim, and can impact your usual experience.  Be prepared!
+"
+"   :set ch=2       if the word "recording" hides messages you wanted
+"
+"   :let g:RepeatLast_TriggerCursorHold = 1  or  0   for GUI fixes
+"
+" Also: :RepeatLastDisable :RepeatLastEnable :RepeatLastToggleDebugging
 
 
 
 " == Usage ==
 "
-" Assuming your mapleader is '&#039 (the default):
+" Assuming your mapleader is '\' (the default), these |mappings| are created:
 "
 "   \?   Display a list of recently recorded actions
 "
 "   4\?  Display the last four recorded actions
 "
-"   4\.  Repeat the last four actions
-"
 "   \.   Repeat the last action (similar to . but may replay just a movement)
+"
+"   4\.  Repeat the last four recorded actions (including movement actions)
+"
+"   \\.  Replay the last *repeated* action-group (all 4 actions above)
+"
+"   9\\. Replay the last *repeated* action-group 9 times (producing 9 times 4)
 "
 "   \D   Forget (drop) the last action (e.g. to discard an unwanted movement)
 "
 "   3\D  Drop the last 3 recorded actions (useful to get back to earlier state)
 "
-"   \|  or  \#   Temporarily disable recording of the next few actions.
+"   \|  or  \#
+"
+"        Temporarily enable/disable recording for the next few actions
+"
+"        (Allows free movement without adding new actions to history)
+"
+"   4\G  Grab the last 4 actions and store in register 'g'
+"
+"   @g   Repeat the actions stored in register 'g'
+"
+"   :let @i=@g
+"
+"        Copy the actions to register 'i', so 'g' may be overwritten.
+"
+"   :let g:RepeatLast_SaveToRegister = 'p'
+"
+"        Always save any repeated action-group into @p
+"
+"   :let g:RepeatLast_TriggerCursorHold = 1
+"
+"        Try the UI fix.  May occasionally fail to record actions.
 "
 " Commands are also available for the main shortcuts above:
 "
-"   :ShowRecent   :RepeatLast   :DropLast   :PauseRecording
+"   :ShowRecent   :RepeatLast   :DropLast   :PauseRecording   :GrabLast
 "
 " Commands to toggle state at runtime:
 "
-"   :RepeatLastOn    Disables action recording, leaves macro record mode.
+"   :RepeatLastEnable    Enables action recording, enters macro record mode.
 "
-"   :RepeatLastOff   Enables action recording, enters macro record mode.
+"   :RepeatLastDisable   Disables action recording, leaves macro record mode.
 "
-"   :RepeatLast<Tab>  or  :RepeatLast<Ctrl-D>   More commands, to toggle info.
+"   :RepeatLast<Ctrl-D>  or  <Tab>      More commands, some toggle info.
 "
 " New feature - Auto Ignoring:
 "
 "   After executing a repeat action, action storage will be *temporarily
-"   disabled* for the number of actions specified in:
+"   disabled* for the number of actions specified by:
 "
-"     g:RepeatLast_Ignore_After_Use_For
+"     let g:RepeatLast_Ignore_After_Use_For = 10
 "
 "   This allows you to move to a new location between executing repeats,
-"   without recording those movement actions.  (Movement actions in the
-"   *original* executed repeat remain in history so can still be repeated.)
-"
-"   Action storage can also be temporarily disabled with \| or \#
+"   without recording those movement actions.
 "
 "   Once you have performed enough actions without executing a repeat, action
 "   storage will be re-enabled, and the ignored actions will be added to the
-"   history as one large entry.
+"   history as one large entry.  Although g:RepeatLast_Stop_Ignoring_On_Edit
+"   prevents this recovery.
+"
+" Reading this rest of this file:
+"
+"   You may like to try  :FoldNicely
 
 
 
@@ -65,15 +102,26 @@ This is a mirror of http://www.vim.org/scripts/script.php?script_id=4381
 "
 "   :set cmdheight=2    or more
 "
-" (This is preferable to adding frequent calls to sleep, which pause Vim long
+" This is preferable to adding frequent calls to sleep, which pause Vim long
 " enough to show messages, but can slow down / lock up Vim when we are
-" pressing a lot of keys.)
+" pressing a lot of keys (unless I find a way to check the key buffer length).
 "
 " If you want to record your own macro, you can disable the plugin with
-" :RepeatLastOff (or you could try just pressing 'q' for a one-time disable).
+" :RepeatLastDisable (or you could try just pressing 'q' for a one-time disable).
 "
 " CursorHold events do not fire in macro-recording mode.  Any visual tools,
 " taglist updates, etc. that require CursorHold *will not be triggered*.
 " Other events such as CursorMove, InsertLeave, BufWritePost work fine.
-
+" The new option RepeatLast_TriggerCursorHold can now be used to force trigger
+" of CursorHold events.  It may not be ideal, but mostly works ok.
+"
+" == Disadvantages ==
+"
+" Movements j and k will not return to the original column after passing
+" through shorter lines.  (This is only a problem when using
+" RepeatLast_TriggerCursorHold.)
+"
+" Use of some <Tab>-completion plugins may produce unexpected behaviour when
+" replaying actions including a <Tab>-completion.  (Although Vim's built-in
+" '.' does not suffer from this.)
 
