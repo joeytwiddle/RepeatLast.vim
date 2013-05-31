@@ -336,29 +336,52 @@ if !exists("g:RepeatLast_Show_Debug_Info")
   let g:RepeatLast_Show_Debug_Info = 0
 endif
 
-" :let g:RepeatLast_TriggerCursorHold = 0  or  1  or  2
+" :let g:RepeatLast_TriggerCursorHold = 0  or  1  or  2  or  3  or  4
+"
 " When enabled, temporarily stops recording to allow Vim's 'CursorHold' event to
 " trigger.  This event is used by some scripts to perform visual UI updates or
 " lazy actions.  It normally triggers after 'updatetime' but if we wait that
 " long, there is a good chance we will fail to record some keystrokes!
 "
-"   0 - Simple.  Do not trigger CursorHold events, never lose keystrokes.
+"   0 - Disabled.  Do not trigger CursorHold events, never lose keystrokes.
 "
-"   1 - Safe.  Always trigger immediately after a keystroke, fires many events!
+"   1 - Simple.  Always trigger immediately after a keystroke, fires many events!
 "
-"   2 - Compromise.  Trigger after updatetime, or immediately, or don't
-"       trigger, based on recent user interaction speed.  May sometimes fail
-"       to record actions, if the user hits a key quickly after hitting a key
-"       slowly, or when Vim is being slow, or for a short while after an
-"       Escape.  e.g.  i_<Esc><Enter>
+"   2 - Safer, recommended.  Trigger immediately after a keystroke, unless
+"       user is holding down a key (if time since last action is <50ms).  (We
+"       could increase this value!)
+"
+"   3 - Lossy compromise.  Triggers after updatetime if user is acting slowly,
+"       or immediately if user is acting fast, or not at all if user is
+"       holding down a key.  This will frequently fail to record the second
+"       action, if the user hits two keys rapidly after a pause.
+"
+"   4 - Ugly compromise.  Like 3 but does a sleep instead of pausing recording
+"       for updatetime, so no actions will be lost.  Whilst it generally
+"       records the second keystroke (which 3 would lose), it will not break
+"       out of the sleep, which is visually annoying (Vim acts unresponsive).
+"
+" BUG: All of the above except 0 can miss a keystroke if Vim is being slow, or
+"      waiting for a multi-key, e.g. misses the <Enter> in  i<Esc><Enter>
+"      In such cases, the keystroke is performed before we re-enter macro
+"      recording mode.  "immediately" above actually means we leave recording
+"      mode for 1ms.
+"
+" BUG: They can also block recording of actions taken when in visual mode,
+"      because CursorHold does not fire then, so our recording is not
+"      re-started.  We can fix this by never triggering if we detect we are in
+"      visual mode.
+"
+" BUG: If my <C-J> mapping is present, 4 works fine on  }j  but not on
+"      }<Enter>  which gets interpreted as  }<C-J>
 "
 if !exists("g:RepeatLast_TriggerCursorHold")
   let g:RepeatLast_TriggerCursorHold = 2
 endif
-" BUG: It blocks recording of actions taken when in visual mode.
+"
 " Possible future modes (not yet implemented).
-"   3 - always trigger with 0 interval (for testing) (todo)
-"   4 and upwards - always trigger after a fixed interval (todo)
+"   5 - always trigger with 0 interval (for testing) (todo)
+"   6 - always trigger after a fixed interval (useless) (todo)
 
 " If set, when you repeat a group, the actions will also be saved in this
 " register.  So  5\.20@g  like  5\.20\\.  will repeat 5 actions 21 times.
@@ -662,9 +685,22 @@ function! s:EndActionDetected(trigger)
       if s:old_updatetime == 0
         let s:old_updatetime = &updatetime
       endif
-      if g:RepeatLast_TriggerCursorHold > 1 && timeSinceLast > s:old_updatetime*1000
-        " If user is moving VERY slowly, do a normal slow trigger
-        let &updatetime = s:old_updatetime
+      if !exists("g:log") | let g:log = "" | endif
+      let g:log .= "timeSinceLast=".timeSinceLast . " s:old_updatetime=".s:old_updatetime."\n"
+      if g:RepeatLast_TriggerCursorHold >= 3 && timeSinceLast > 2*s:old_updatetime*1000
+        if g:RepeatLast_TriggerCursorHold == 3
+          " If user is moving VERY slowly, do a normal slow trigger
+          let &updatetime = s:old_updatetime
+        else
+          " Instead of not recording for 'updatetime', we could force a sleep.
+          " However we need to do this on the *return* to recording, because
+          " sleeping now will block the display from updating.
+          " mode.
+          "exec "sleep " . s:old_updatetime . "m"
+          "echo "timeSinceLast = ".timeSinceLast
+          let &updatetime = 1
+          let s:doSleep = 1
+        endif
       else
         " Otherwise do a reasonably fast trigger, to avoid losing keystrokes
         " This should catch repeated (held down) keys if < repeat speed
@@ -676,6 +712,7 @@ function! s:EndActionDetected(trigger)
         let &updatetime = 1
         "let &updatetime = timeSinceLast
         "let &updatetime = g:RepeatLast_TriggerCursorHold
+        let s:doSleep = 0
       endif
       " If we don't start recording again, it's possible that another trigger
       " may fire, and re-store the register contents!  (e.g.  InsertLeave,
@@ -727,9 +764,6 @@ function! s:CursorHoldDone()
     "" So we should only do it if the time between the last two actions was
     "" high.
     ""
-    "if g:RepeatLast_TriggerCursorHold > 2
-    "  exec "sleep ".(g:RepeatLast_TriggerCursorHold-2)."ms"
-    "endif
     ""
     "" Interstingly near the threshold, when I hold <Enter> I get first an
     "" <Enter> but then a few <Ctrl-J>s.  Presumably this is because two
@@ -739,6 +773,13 @@ function! s:CursorHoldDone()
     "" their effect?
 
     call s:StartRecording()
+
+    if g:RepeatLast_TriggerCursorHold >= 4 && exists("s:doSleep") && s:doSleep
+      " exec "sleep ".(g:RepeatLast_TriggerCursorHold-2)."m"
+      " exec "sleep ".s:old_updatetime."m"
+      exec "sleep ".&updatetime."m"
+    endif
+
   endif
 endfunction
 
