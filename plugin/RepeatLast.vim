@@ -60,7 +60,7 @@
 "
 "        Always save any repeated action-group into @p
 "
-"   :let g:RepeatLast_TriggerCursorHold = 1
+"   :let g:RepeatLast_TriggerCursorHold = 2
 "
 "        Try the UI fix.  May occasionally fail to record actions.
 "
@@ -336,19 +336,29 @@ if !exists("g:RepeatLast_Show_Debug_Info")
   let g:RepeatLast_Show_Debug_Info = 0
 endif
 
-" Experimental:
-" May lose actions executed very quickly by user (or when Vim is being slow).
-" Or for a short while after an Escape.  e.g. i_<Esc><Enter>
+" :let g:RepeatLast_TriggerCursorHold = 0  or  1  or  2
+" When enabled, temporarily stops recording to allow Vim's 'CursorHold' event to
+" trigger.  This event is used by some scripts to perform visual UI updates or
+" lazy actions.  It normally triggers after 'updatetime' but if we wait that
+" long, there is a good chance we will fail to record some keystrokes!
+"
+"   0 - Simple.  Do not trigger CursorHold events, never lose keystrokes.
+"
+"   1 - Safe.  Always trigger immediately after a keystroke, fires many events!
+"
+"   2 - Compromise.  Trigger after updatetime, or immediately, or don't
+"       trigger, based on recent user interaction speed.  May sometimes fail
+"       to record actions, if the user hits a key quickly after hitting a key
+"       slowly, or when Vim is being slow, or for a short while after an
+"       Escape.  e.g.  i_<Esc><Enter>
+"
 if !exists("g:RepeatLast_TriggerCursorHold")
   let g:RepeatLast_TriggerCursorHold = 2
 endif
-" BUG TODO: It blocks recording of actions taken when in visual mode.
-" Only modes 0, 1 and 2 are implemented so far...
-"   0 - Do not trigger CursorHold events, never lose keystrokes
-"   1 - Always trigger (almost immediately)
-"   2 - Trigger sometimes/slowly (may occasionally lose keystrokes)
-"   3 - always do at 0 interval (todo)
-"   4 - always do at fixed interval (todo)
+" BUG: It blocks recording of actions taken when in visual mode.
+" Possible future modes (not yet implemented).
+"   3 - always trigger with 0 interval (for testing) (todo)
+"   4 and upwards - always trigger after a fixed interval (todo)
 
 " If set, when you repeat a group, the actions will also be saved in this
 " register.  So  5\.20@g  like  5\.20\\.  will repeat 5 actions 21 times.
@@ -356,9 +366,9 @@ if !exists("g:RepeatLast_SaveToRegister")
   let g:RepeatLast_SaveToRegister = ''
 endif
 
-" The string used to separate commands when displaying the list ("\n" or ' ').
-" Unfortunately although ' ' looks nice, we often lose things to the
-" "recording" line, unless we set Show_History very low.
+" The string used to separate commands when displaying the list ("\n" or " ").
+" Unfortunately although " " looks nice, we often lose text on the 'recording'
+" line, unless we set Show_History very low.
 if !exists("g:RepeatLast_List_Delimeter")
   let g:RepeatLast_List_Delimeter = "\n"
 endif
@@ -684,12 +694,20 @@ endfunction
 
 " Should return a number in nanoseconds
 function! s:gettime()
-  let rt = reltime()
-  if len(rt) > 1
-    return rt[0]*1000000 + rt[1]   " Ubuntu
-  else
-    return rt[0]                   " Dunno; fallback
-  endif
+  let rts = reltimestr(reltime())
+  let rts = substitute(rts,'\.','','')
+  return str2nr(rts)
+  " The code above should be a bit more system independent than that below.
+  " However *both* suffer from the fact that vim ints do not have the range to
+  " store milliseconds since 1970.  The number we actually get is truncated,
+  " which is sufficient for in general, but will very occasionally suffer a
+  " rollover bug.
+  "let rt = reltime()
+  "if len(rt) > 1
+  "  return rt[0]*1000000 + rt[1]   " Ubuntu
+  "else
+  "  return rt[0]                   " Dunno; fallback
+  "endif
 endfunction
 
 function! s:CursorHoldDone()
