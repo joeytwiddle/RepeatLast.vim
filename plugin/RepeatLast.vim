@@ -685,8 +685,8 @@ function! s:EndActionDetected(trigger)
       if s:old_updatetime == 0
         let s:old_updatetime = &updatetime
       endif
-      if !exists("g:log") | let g:log = "" | endif
-      let g:log .= "timeSinceLast=".timeSinceLast . " s:old_updatetime=".s:old_updatetime."\n"
+      "if !exists("g:log") | let g:log = "" | endif
+      "let g:log .= "timeSinceLast=".timeSinceLast . " s:old_updatetime=".s:old_updatetime."\n"
       if g:RepeatLast_TriggerCursorHold >= 3 && timeSinceLast > 2*s:old_updatetime*1000
         if g:RepeatLast_TriggerCursorHold == 3
           " If user is moving VERY slowly, do a normal slow trigger
