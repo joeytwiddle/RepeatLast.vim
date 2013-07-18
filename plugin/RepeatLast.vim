@@ -354,6 +354,8 @@ augroup END
 
 " Sometimes we skip recording events for a while
 let s:ignoringCount = 0
+" This one drops the first stroke, but keeps the rest of the macro.
+let s:ignoreNextKeystroke = 0
 
 let s:currentlyReplaying = 0
 let s:old_updatetime = 0   " When non-zero, we have left macro recording mode.
@@ -405,10 +407,10 @@ function! s:EndActionDetected(trigger)
     " clearing of the macro for general ignoring below.
     if g:RepeatLast_Stop_Ignoring_On_Edit != 0 && (a:trigger == "InsertLeave" || a:trigger == "InsertEnter")
 
-      " BUG: I never see this echoed!
         if g:RepeatLast_Show_Ignoring_Info != 0
           echo "Edits detected by ".a:trigger." - no longer ignoring!"
           sleep 400ms
+          " We need the sleep or we never see this echoed!
         endif
       let s:ignoringCount = 0
 
@@ -430,6 +432,7 @@ function! s:EndActionDetected(trigger)
         " feature.  Or perhaps we always do want to forget ignored actions!
         " E.g. if we don't do this: \|jjA will record the jj when it shouldn't!
         call s:RestartRecording()
+        let s:ignoreNextKeystroke = 0
       endif
       if s:ignoringCount == 0
         if g:RepeatLast_Show_Ignoring_Info != 0
@@ -491,6 +494,14 @@ function! s:EndActionDetected(trigger)
     " let extraReport = extraReport . "\n"
   " endif
   " let lastAction = cleanedAction
+
+  if s:ignoreNextKeystroke
+    let s:ignoreNextKeystroke = 0
+    if g:RepeatLast_Show_Debug_Info != 0
+      echo "Ignoring single action \"". s:MyEscape(lastAction[0:0]) ."\" as requested."
+    endif
+    let lastAction = lastAction[1:]
+  endif
 
   if lastAction == ""
 
@@ -738,6 +749,10 @@ function! s:ShowRecent(num)
   if s:ignoringCount > 0
     echo "[Auto-ignoring enabled for another ".s:ignoringCount." events.]"
   endif
+
+  " This almost always causes a |hit-enter| prompt, which usually results in a
+  " user press of <Space> or <Enter> which gets recorded!  To prevent that:
+  let s:ignoreNextKeystroke = 1
 
 endfunction
 
