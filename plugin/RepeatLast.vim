@@ -258,6 +258,12 @@ if !exists("g:RepeatLast_List_Delimeter")
   let g:RepeatLast_List_Delimeter = "\n"
 endif
 
+" Whether to anticipate and ignore a keypress after ShowRecent's |hit-enter|
+" prompt.  (Probably wanted.)
+if !exists("g:RepeatLast_IgnoreHitEnter")
+  let g:RepeatLast_IgnoreHitEnter = 1
+endif
+
 
 
 " == Mappings and Commands ==
@@ -720,6 +726,12 @@ function! s:ShowRecent(num)
   " OK since we moved code around, it seems this is no longer needed.
   "echo "I will get hidden"
   call s:RestartRecording()
+  " BUG TODO: This will lose any keystrokes which are still lagging in the
+  " macro and have not yet been saved as an action.  We should probably save
+  " any recorded actions at this point, but just discard the keystrokes from
+  " the end that lead to this call.
+  " For example, compare `:echo "lost"<Enter>\?` vs `:echo "kept"<Enter>kk\?`
+  " NOTE: When changing this, recommend also doing the same in RepeatLast().
 
   if numWanted > len(s:earlierActions)
     let numWanted = len(s:earlierActions)
@@ -752,7 +764,9 @@ function! s:ShowRecent(num)
 
   " This almost always causes a |hit-enter| prompt, which usually results in a
   " user press of <Space> or <Enter> which gets recorded!  To prevent that:
-  let s:ignoreNextKeystroke = 1
+  if g:RepeatLast_IgnoreHitEnter
+    let s:ignoreNextKeystroke = 1
+  endif
 
 endfunction
 
