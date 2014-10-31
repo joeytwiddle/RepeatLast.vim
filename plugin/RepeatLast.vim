@@ -13,7 +13,7 @@
 "
 "   :set ch=2       if the word "recording" hides messages you wanted
 "
-"   :let g:RepeatLast_TriggerCursorHold = 1  or  0   for GUI fixes
+"   :let g:RepeatLast_TriggerCursorHold = 1  or  0  or  5   for GUI fixes
 "
 " Also: :RepeatLastDisable :RepeatLastEnable :RepeatLastToggleDebugging
 "
@@ -190,7 +190,7 @@ if !exists("g:RepeatLast_Show_Debug_Info")
   let g:RepeatLast_Show_Debug_Info = 0
 endif
 
-" :let g:RepeatLast_TriggerCursorHold = 0  or  1  or  2  or  3  or  4
+" :let g:RepeatLast_TriggerCursorHold = 0  or  1  or  2  or  3  or  4  or  5
 "
 " When enabled, temporarily stops recording to allow Vim's 'CursorHold' event to
 " trigger.  This event is used by some scripts to perform visual UI updates or
@@ -220,6 +220,8 @@ endif
 "       records the second keystroke (which 3 would lose), it will not break
 "       out of the sleep, which is visually annoying (Vim acts unresponsive).
 "
+"   5 - Simulate the CursorHold with a responsive sleep.
+"
 " BUG: All of the above except 0 can miss a keystroke if Vim is being slow, or
 "      waiting for a multi-key, e.g. misses the  <Enter>  in  i<Esc><Enter>
 "      In such cases, the keystroke is performed before we re-enter macro
@@ -236,7 +238,7 @@ endif
 "      }<Enter>  which gets interpreted as  }<C-J>
 "
 if !exists("g:RepeatLast_TriggerCursorHold")
-  let g:RepeatLast_TriggerCursorHold = 1
+  let g:RepeatLast_TriggerCursorHold = 5
 endif
 "
 " Possible future modes (not yet implemented).
@@ -566,7 +568,21 @@ function! s:EndActionDetected(trigger)
     " The disadvantage of this check is if the user doesn't do anything slow
     " after holding down keys, our fake CursorHold will not trigger until they
     " do!
-    if g:RepeatLast_TriggerCursorHold==2 || timeSinceLast > 100*1000
+    if g:RepeatLast_TriggerCursorHold==5
+      let startTime = s:gettime()
+      let endTime = startTime + &updatetime*1000
+      "call s:StopRecording()
+      echo "Sleeping from ".startTime." until ".endTime." getchar(1)=".getchar(1)
+      while s:gettime() < endTime
+        if getchar(1) > 0
+          echo "Aborting on char ".getchar(1)
+          break
+        endif
+        sleep "10m"
+      endwhile
+      "call s:StartRecording()
+      echo "Done"
+    elseif g:RepeatLast_TriggerCursorHold==2 || timeSinceLast > 100*1000
       " Delay entering recording mode for a moment, so that CursorHold will fire
       " (which may perform useful visuals tasks for the user).
       if s:old_updatetime == 0
