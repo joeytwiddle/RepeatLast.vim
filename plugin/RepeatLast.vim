@@ -200,7 +200,7 @@ endif
 "   0 - Disabled.  Do not trigger CursorHold events, never lose keystrokes.
 "
 "   1 - Safe, recommended.  Trigger immediately after a keystroke, unless
-"       user is holding down a key (if time since last action is <50ms).  (We
+"       user is holding down a key (if time since last action is <100ms).  (We
 "       could increase this threshold a little for slower machines/users.)
 "
 "   2 - Simple.  Always trigger immediately after a keystroke, fires many
@@ -566,7 +566,7 @@ function! s:EndActionDetected(trigger)
     " The disadvantage of this check is if the user doesn't do anything slow
     " after holding down keys, our fake CursorHold will not trigger until they
     " do!
-    if g:RepeatLast_TriggerCursorHold==2 || timeSinceLast > 50000
+    if g:RepeatLast_TriggerCursorHold==2 || timeSinceLast > 100*1000
       " Delay entering recording mode for a moment, so that CursorHold will fire
       " (which may perform useful visuals tasks for the user).
       if s:old_updatetime == 0
