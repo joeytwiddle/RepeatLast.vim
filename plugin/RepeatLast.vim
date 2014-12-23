@@ -60,9 +60,9 @@
 "
 "        Always save any repeated action-group into @p
 "
-"   :let g:RepeatLast_TriggerCursorHold = 0
+"   :let g:RepeatLast_TriggerCursorHold = 1
 "
-"        Disable the UI fix.  CursorHold events will not fire.
+"        Try the UI fix.  May occasionally fail to record actions.
 "
 " Commands are also available for the main shortcuts above:
 "
@@ -74,7 +74,7 @@
 "
 "   :RepeatLastDisable   Disables action recording, leaves macro record mode.
 "
-"   :RepeatLast<Ctrl-D>  or  <Ctrl-N>      More commands, some toggle info.
+"   :RepeatLast<Ctrl-D>  or  <Tab>      More commands, some toggle info.
 "
 " New feature - Auto Ignoring:
 "
@@ -105,6 +105,10 @@
 "
 "   :set cmdheight=2    or more
 "
+" This is preferable to adding frequent calls to sleep, which pause Vim long
+" enough to show messages, but can slow down / lock up Vim when we are
+" pressing a lot of keys (unless I find a way to check the key buffer length).
+"
 " Because recording is enabled, for commands like `q:` and `q/` you will need
 " to press an extra `q` beforehand, and they will not be recorded in history.
 "
@@ -119,13 +123,14 @@
 "
 " == Disadvantages ==
 "
-" Movements j and k will not return to the original column after passing
+" Movements `j` and `k` will not return to the original column after passing
 " through shorter lines.  (This is only a problem when using
-" RepeatLast_TriggerCursorHold.)
+" RepeatLast_TriggerCursorHold.  It happens because that features exits and
+" then rejoins macro recording mode, and this forgets the "recent column".)
 "
 " Use of some <Tab>-completion plugins may produce unexpected behaviour when
 " replaying actions including a <Tab>-completion.  (Although Vim's built-in
-" '.' does not suffer from this.)
+" '.' and `<Ctrl-N>` features do not suffer from this.)
 
 
 
