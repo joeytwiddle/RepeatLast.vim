@@ -1,5 +1,3 @@
-This is a mirror of http://www.vim.org/scripts/script.php?script_id=4381
-
 " Provides <count>\. to repeat the last group of actions you performed.
 "
 "                 "A beautiful monster" -- bairui in #vim
